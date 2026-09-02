@@ -5,7 +5,7 @@
 # 用法：
 #   bash scripts/download_models.sh
 #   下载完成后将整个 ./models 目录拷贝/放置到内网 GPU 主机，
-#   并用 docker-compose 的 MODEL_DIR 指向它。
+#   docker run 时用 -v <宿主models目录>:/models:ro 挂载即可。
 #
 # 依赖：python3 + huggingface_hub，或安装 modelscope CLI
 # ============================================================================
@@ -42,5 +42,6 @@ echo "      ├── speech_tokenizer/"
 echo "      ├── config.json / generation_config.json"
 echo "      └── ... 模型权重"
 echo ""
-echo "内网主机放置模型后，docker-compose 设置：MODEL_DIR=<含该目录的父目录>"
-echo "例如将 ./models 放到 /data/models，则 MODEL_DIR=/data/models"
+echo "内网主机放置模型后，docker run 挂载该父目录即可，例如："
+echo "  -v /data/models:/models:ro"
+echo "例如将 ./models 放到 /data/models，则 -v /data/models:/models:ro"
