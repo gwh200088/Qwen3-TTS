@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Qwen3-TTS 语音克隆工作台</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234F46E5'/%3E%3Cpath d='M11 16a5 5 0 0 0 10 0M16 9v7' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div class="app">
+    <!-- 顶栏 -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 32 32" width="24" height="24" aria-hidden="true">
+            <rect width="32" height="32" rx="8" fill="url(#g1)"/>
+            <path d="M11 16a5 5 0 0 0 10 0M16 9v7" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+            <defs><linearGradient id="g1" x1="0" y1="0" x2="32" y2="32">
+              <stop offset="0" stop-color="#4F46E5"/><stop offset="1" stop-color="#06B6D4"/>
+            </linearGradient></defs>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>语音克隆工作台</h1>
+          <span class="brand-sub">Qwen3-TTS Voice Clone · 内网服务</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span id="modelChip" class="chip chip-loading" title="模型加载状态">
+          <span class="dot" id="connDot"></span>
+          <span id="modelChipText">连接中…</span>
+        </span>
+        <button id="apiKeyBtn" class="btn btn-ghost btn-sm" title="配置 X-API-Key（如服务启用了鉴权）">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2M15 7l3 3"/></svg>
+          API Key
+        </button>
+      </div>
+    </header>
+
+    <!-- API Key 弹层 -->
+    <div id="apiKeyPop" class="popover hidden">
+      <div class="popover-head">API 访问密钥 <button id="apiKeyClose" class="popover-x" aria-label="关闭">×</button></div>
+      <input id="apiKeyInput" class="input" type="password" placeholder="粘贴 X-API-Key，留空表示不鉴权" autocomplete="off" />
+      <p class="hint">密钥仅保存在当前浏览器（localStorage），随请求通过 <code>X-API-Key</code> 头发送。</p>
+      <button id="apiKeySave" class="btn btn-primary btn-block">保存</button>
+    </div>
+
+    <div class="layout">
+      <!-- 左侧：音色库 -->
+      <aside class="sidebar">
+        <div class="sidebar-head">
+          <h2>音色库 <span id="voiceCount" class="count-badge">0</span></h2>
+          <button id="newVoiceBtn" class="btn btn-primary btn-sm">＋ 上传新音色</button>
+        </div>
+        <div class="search-wrap">
+          <span class="search-icon">⌕</span>
+          <input id="searchInput" class="input search-input" type="search" placeholder="搜索音色名称…" />
+        </div>
+        <div id="voiceList" class="voice-list">
+          <div class="empty-tip">正在加载音色库…</div>
+        </div>
+      </aside>
+
+      <!-- 右侧：合成工作台 -->
+      <main class="main">
+        <div class="tabs">
+          <button class="tab active" data-tab="panelSaved">使用已保存音色</button>
+          <button class="tab" data-tab="panelTemp">临时音频克隆</button>
+        </div>
+
+        <!-- Tab1：已保存音色合成 -->
+        <section id="panelSaved" class="panel active">
+          <div class="card">
+            <div class="card-head">
+              <h3>① 选择音色</h3>
+              <span id="savedSelectedInfo" class="muted"></span>
+            </div>
+            <select id="voiceSelect" class="input select"></select>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>② 输入文本</h3></div>
+            <textarea id="synthText" class="input textarea" rows="4"
+              placeholder="输入要合成的文本，例如：你好，很高兴认识你。"></textarea>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>③ 参数与生成</h3></div>
+            <div class="row">
+              <label class="field">
+                <span class="field-label">语种</span>
+                <select id="synthLang" class="input select"></select>
+              </label>
+              <details class="advanced">
+                <summary>高级生成参数</summary>
+                <div class="adv-grid">
+                  <label class="field">
+                    <span class="field-label">temperature</span>
+                    <input id="pTemp" class="input" type="number" step="0.1" min="0" max="2" placeholder="默认" />
+                  </label>
+                  <label class="field">
+                    <span class="field-label">top_p</span>
+                    <input id="pTopP" class="input" type="number" step="0.05" min="0" max="1" placeholder="默认" />
+                  </label>
+                  <label class="field">
+                    <span class="field-label">top_k</span>
+                    <input id="pTopK" class="input" type="number" step="1" min="0" placeholder="默认" />
+                  </label>
+                  <label class="field">
+                    <span class="field-label">repetition_penalty</span>
+                    <input id="pRep" class="input" type="number" step="0.05" min="0.5" max="2" placeholder="默认" />
+                  </label>
+                  <label class="field">
+                    <span class="field-label">max_new_tokens</span>
+                    <input id="pMax" class="input" type="number" step="1" min="64" placeholder="默认" />
+                  </label>
+                </div>
+              </details>
+            </div>
+            <button id="synthBtn" class="btn btn-primary btn-block btn-lg">
+              <span class="btn-label">开始合成</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Tab2：一次性克隆 -->
+        <section id="panelTemp" class="panel">
+          <div class="card">
+            <div class="card-head">
+              <h3>① 上传参考音频</h3>
+              <label class="switch-field">
+                <input id="cXvec" type="checkbox" />
+                <span>仅使用说话人向量（免参考文本，效果有限）</span>
+              </label>
+            </div>
+            <div id="cDrop" class="dropzone">
+              <input id="cFileInput" type="file" accept="audio/*,.wav,.mp3,.flac,.ogg,.m4a" hidden />
+              <div class="drop-inner">
+                <svg class="drop-icon" viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+                  <path d="M12 16V4m0 0l-4 4m4-4l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                  <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                </svg>
+                <p class="drop-title">拖拽音频到这里，或 <span class="link">点击选择文件</span></p>
+                <p class="drop-sub">支持 wav / mp3 / flac / ogg / m4a，时长建议 3 ~ 60 秒</p>
+              </div>
+              <div id="cFileInfo" class="file-info hidden"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>② 参考文本与目标文本</h3></div>
+            <div class="field">
+              <label class="field-label" for="cRefText">参考音频文本 <span class="muted">(取消勾选“仅说话人向量”时必填)</span></label>
+              <textarea id="cRefText" class="input textarea" rows="2"
+                placeholder="参考音频里说的内容，例如：大家好，欢迎收听今天的节目。"></textarea>
+            </div>
+            <div class="field" style="margin-top:12px">
+              <label class="field-label" for="cSynthText">待合成文本</label>
+              <textarea id="cSynthText" class="input textarea" rows="4"
+                placeholder="输入要合成的文本…"></textarea>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>③ 语种与生成</h3></div>
+            <select id="cLang" class="input select" style="max-width:280px"></select>
+            <button id="cSynthBtn" class="btn btn-primary btn-block btn-lg" style="margin-top:14px">
+              <span class="btn-label">克隆并合成</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- 结果区 -->
+        <section id="resultCard" class="card result-card hidden">
+          <div class="card-head">
+            <h3>合成结果</h3>
+            <span id="resultMeta" class="muted"></span>
+          </div>
+          <audio id="resultAudio" controls class="audio-player"></audio>
+          <div class="result-actions">
+            <a id="downloadLink" class="btn btn-outline" download="tts_output.wav">⬇ 下载 WAV</a>
+            <button id="reuseBtn" class="btn btn-ghost hidden">使用此结果试听完毕</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- 底部状态条 -->
+    <footer class="statusbar">
+      <span id="statusText" class="status-text">就绪</span>
+      <span id="statusTime" class="muted"></span>
+    </footer>
+  </div>
+
+  <!-- 上传音色弹窗 -->
+  <div id="voiceModal" class="modal-backdrop hidden">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>上传新音色</h3>
+        <button id="modalClose" class="popover-x" aria-label="关闭">×</button>
+      </div>
+      <div class="field">
+        <label class="field-label" for="vName">音色名称 <b class="req">*</b></label>
+        <input id="vName" class="input" type="text" maxlength="50" placeholder="例如：客服小美（需唯一）" />
+      </div>
+      <div id="vDrop" class="dropzone drop-sm">
+        <input id="vFileInput" type="file" accept="audio/*,.wav,.mp3,.flac,.ogg,.m4a" hidden />
+        <div class="drop-inner">
+          <p class="drop-title"><span class="link">点击选择</span> 或拖拽参考音频</p>
+          <p class="drop-sub">wav / mp3 / flac / ogg / m4a · 建议 3~60s</p>
+        </div>
+        <div id="vFileInfo" class="file-info hidden"></div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="vRefText">参考音频文本</label>
+        <textarea id="vRefText" class="input textarea" rows="2"
+          placeholder="参考音频里说的内容（不勾选“仅说话人向量”时必填）"></textarea>
+      </div>
+      <label class="switch-field" style="margin:4px 0 14px">
+        <input id="vXvec" type="checkbox" />
+        <span>仅使用说话人向量（无需参考文本，克隆相似度略低）</span>
+      </label>
+      <div class="modal-actions">
+        <button id="saveVoiceBtn" class="btn btn-primary btn-block btn-lg">
+          <span class="btn-label">提取声纹并保存</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

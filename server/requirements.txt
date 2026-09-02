@@ -1,0 +1,13 @@
+# =============================================================
+# Qwen3-TTS server 运行依赖
+# 说明：
+#   - 本文件只包含 server/ 服务层新增依赖。
+#   - qwen_tts 核心包及其依赖（transformers/accelerate/librosa/...）
+#     由仓库根目录执行 `pip install .` 一并安装（见 pyproject.toml）。
+#   - 如需完全离线安装，请配合内网 pip 镜像或提前下载 wheel。
+# =============================================================
+
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.29,<1.0
+python-multipart>=0.0.9,<1.0
+pydantic>=2.6,<3.0

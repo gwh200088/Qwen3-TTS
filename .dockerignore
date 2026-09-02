@@ -1,0 +1,36 @@
+# Git / 缓存
+.git
+.gitignore
+**/__pycache__
+**/*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# 模型权重（外挂挂载，绝不进镜像）
+models/
+*.safetensors
+*.bin
+*.onnx
+
+# 音色库数据 / 日志
+data/
+*.log
+*.pt
+
+# 文档与示例（非镜像运行所需，减小构建上下文）
+docs/
+examples/
+finetuning/
+scripts/
+dist/
+assets/
+
+# 本地环境
+.env
+.venv/
+venv/
+node_modules/
+generated-images/
+*.tar.gz

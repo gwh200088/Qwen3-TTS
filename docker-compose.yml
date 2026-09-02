@@ -1,0 +1,56 @@
+services:
+  tts:
+    image: qwen3-tts-server:0.1.1
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: qwen3-tts
+    restart: unless-stopped
+    ports:
+      - "${SERVICE_PORT:-8000}:8000"
+    environment:
+      # 模型 / 数据（均外挂 volume，见下方 volumes）
+      # MODEL_PATH 指向容器内 /models 下的具体子目录，默认 Qwen3-TTS-12Hz-1.7B-Base
+      MODEL_PATH: "${MODEL_PATH:-/models/Qwen3-TTS-12Hz-1.7B-Base}"
+      DATA_DIR: /data
+      # GPU 兼容策略：T4/A10 均可 auto；A10 可选 bf16
+      DEVICE: "${DEVICE:-cuda:0}"
+      MODEL_DTYPE: "${MODEL_DTYPE:-auto}"
+      ATTN_IMPL: "${ATTN_IMPL:-auto}"
+      # 鉴权（留空则内网免鉴权）
+      API_KEY: "${API_KEY:-}"
+      MAX_CONCURRENCY: "${MAX_CONCURRENCY:-1}"
+      PRELOAD_MODEL: "${PRELOAD_MODEL:-true}"
+      MIN_AUDIO_SECONDS: "${MIN_AUDIO_SECONDS:-1}"
+      MAX_AUDIO_SECONDS: "${MAX_AUDIO_SECONDS:-60}"
+      MAX_UPLOAD_MB: "${MAX_UPLOAD_MB:-50}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      # 离线硬保证（缓存目录放 /tmp，/models 为只读挂载）
+      TRANSFORMERS_OFFLINE: "1"
+      HF_HUB_OFFLINE: "1"
+      HF_HOME: /tmp/hf-cache
+    volumes:
+      # 模型权重只读挂载（先执行 scripts/download_models.sh 或手动放置）
+      - "${MODEL_DIR:-./models}:/models:ro"
+      # 音色库数据卷（容器重建/重启不丢失，务必指向持久化目录）
+      - "${DATA_DIR:-./data}:/data"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # gpus: all 为 compose v2 快捷写法，与上面 deploy 等价，可二选一
+    # gpus: all
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 300s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"

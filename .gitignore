@@ -22,3 +22,9 @@ wheels/
 .vscode/
 venv/
 env/
+
+# 本地数据
+.codebuddy/
+models/
+data/
+*.tar.gz
