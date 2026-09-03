@@ -21,8 +21,17 @@ mkdir -p "$(dirname "${OUT_DIR}")"
 
 # 方式一：优先 modelscope（国内网络更快）
 if command -v modelscope >/dev/null 2>&1; then
-  echo "==> 使用 modelscope CLI"
-  modelscope download --model "${REPO_ID}" --local_dir "${OUT_DIR}"
+  echo "==> 使用 modelscope CLI 下载 ${REPO_ID}"
+  if ! modelscope download --model "${REPO_ID}" --local_dir "${OUT_DIR}"; then
+    echo "!! modelscope 下载失败，自动回退 huggingface_hub 重试..." >&2
+    python3 - "$REPO_ID" "$OUT_DIR" <<'PY'
+import sys
+from huggingface_hub import snapshot_download
+repo, out = sys.argv[1], sys.argv[2]
+snapshot_download(repo_id=repo, local_dir=out)
+print("downloaded:", repo, "->", out)
+PY
+  fi
 # 方式二：huggingface_hub snapshot_download（外网/内网有代理时）
 else
   echo "==> 使用 huggingface_hub snapshot_download"
