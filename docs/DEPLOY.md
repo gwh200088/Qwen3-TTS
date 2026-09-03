@@ -91,7 +91,9 @@ bash scripts/save_image.sh 0.1.1
 
 > 可选：若 A10 上需要 flash-attention-2，镜像默认不内置（T4 也不支持）。
 > 需要时请以 `nvidia/cuda:12.4.1-devel-ubuntu22.04` 自行编译 flash-attn，
-> 或 pip 安装预编译 wheel，再打补丁镜像。**不装也不影响功能**，`auto` 会自动回退 eager。
+> 或 pip 安装预编译 wheel，再打补丁镜像。**不装也不影响功能**：
+> A10 等 Ampere+ 卡部署时直接加 `-e ATTN_IMPL=sdpa`（见 4.2/4.4），
+> 无需任何编译即可获得比 eager 更快的注意力实现。
 
 ---
 
@@ -129,7 +131,7 @@ mkdir -p /data/models /data/ttsdata   # 模型目录 + 音色持久化目录（�
 | 模型子目录 | `-e MODEL_PATH=/models/Qwen3-TTS-12Hz-1.7B-Base` | 默认即此，子目录名不同才需改 |
 | 设备 | `-e DEVICE=cuda:0` | 可 `cpu:0` 纯 CPU 调试 |
 | 精度 | `-e MODEL_DTYPE=auto` | T4 自动 fp16；A10 可 `bf16` |
-| 注意力 | `-e ATTN_IMPL=auto` | A10 未装 FA2 时自动回退 eager |
+| 注意力 | `-e ATTN_IMPL=sdpa` | A10 等 Ampere+ 卡未装 FA2 时推荐显式 `sdpa`（明显快于 eager）；拿不准用 `auto` |
 | 鉴权 | `-e API_KEY=` | 留空免鉴权，设值后需 `X-API-Key` 头 |
 | 并发 | `-e MAX_CONCURRENCY=1` | 默认单并发，防 OOM |
 
@@ -138,7 +140,7 @@ mkdir -p /data/models /data/ttsdata   # 模型目录 + 音色持久化目录（�
 | 显卡 | 架构/算力 | `MODEL_DTYPE` | `ATTN_IMPL` 行为 |
 |---|---|---|---|
 | **T4 16G** | Turing · sm75 | `auto`→**fp16**（bf16 强制回退 fp16） | `auto`→**eager**（无 FA2） |
-| **A10 24G** | Ampere · sm86 | `auto`→fp16；可设 `bf16` | `auto`→FA2(已安装时)/否则 **eager**（最稳，兼容 T4） |
+| **A10 24G** | Ampere · sm86 | `auto`→fp16；可设 `bf16` | `auto`→FA2(已安装时)/否则 **eager**；未装 FA2 时推荐显式 **`sdpa`**（比 eager 快，无需编译） |
 
 ### 4.4 启动（docker run 直跑）
 
@@ -156,7 +158,18 @@ MODEL_DIR=/data/models DATA_DIR=/data/ttsdata bash scripts/run_server.sh
 docker logs -f qwen3-tts
 ```
 
+> **A10 等 Ampere+ 卡且镜像未内置 flash-attn 时**，建议追加 `ATTN_IMPL=sdpa`
+> 提速（等价于给 `docker run` 传 `-e ATTN_IMPL=sdpa`）：
+> ```bash
+> MODEL_DIR=/data/models DATA_DIR=/data/ttsdata ATTN_IMPL=sdpa bash scripts/run_server.sh
+> ```
+> T4 上保持默认即可（自动落到 fp16 + eager）。
+
 #### 方式二：手动 docker run（无需任何仓库文件）
+
+> **性能提示**：内网 GPU 为 **Ampere+（A10 等）** 且镜像未内置 flash-attn 时，
+> 下面示例将 `ATTN_IMPL` 设为 `sdpa`（比 `auto` 回退的 eager 明显更快，且无需任何额外编译）。
+> 若部署在 **T4** 上，请将其改回 `-e ATTN_IMPL=auto`（自动落到 eager，最稳）。
 
 **情况 A：Docker ≥ 19.03 + nvidia-container-toolkit**
 
@@ -181,7 +194,7 @@ docker run -d --name qwen3-tts --restart unless-stopped \
   -v /data/models:/models:ro \
   -v /data/ttsdata:/data \
   -e MODEL_PATH=/models/Qwen3-TTS-12Hz-1.7B-Base \
-  -e DEVICE=cuda:0 -e MODEL_DTYPE=auto -e ATTN_IMPL=auto \
+  -e DEVICE=cuda:0 -e MODEL_DTYPE=auto -e ATTN_IMPL=sdpa \
   -e NVIDIA_VISIBLE_DEVICES=all \
   -e NVIDIA_DRIVER_CAPABILITIES=compute,utility \
   --runtime=nvidia \
